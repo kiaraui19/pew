@@ -1,0 +1,699 @@
+const {
+  Client,
+  GatewayIntentBits,
+  EmbedBuilder,
+  PermissionsBitField,
+  REST,
+  Routes,
+  Events,
+  ActivityType,
+  ButtonBuilder,    
+  ActionRowBuilder,
+  ButtonStyle,      
+  ChannelType,
+  ModalBuilder,      
+  TextInputBuilder,  
+  TextInputStyle,
+  Partials
+} = require('discord.js');
+
+// --- ⚠️ CONFIGURATION ⚠️ ---
+const GUILD_ID = '1405456143521677363'; // Your Server ID
+
+// PASTE THE ROLE ID OF THE ADMINS/MODS YOU WANT PINGED IN TICKETS:
+const TICKET_SUPPORT_ROLE = '1459199461556486351'; 
+// ---------------------------
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent, // CRITICAL FOR ! COMMANDS
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildPresences
+  ],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+});
+
+const defaultPrefix = '!';
+
+// --- DATA STORAGE ---
+const guildSettings = new Map();
+const snipes = new Map();
+const skullboardCache = new Set();
+const afkUsers = new Map();
+const uwuTargets = new Set();
+const stickyMessages = new Map();
+
+// --- 🌸 ANIME GIF CONFIGURATION 🌸 ---
+const animeActions = {
+    kiss: {
+        text: "**{user}** kissed **{target}**! Mwah! 💋",
+        solo: "**{user}** is blowing a kiss to everyone... mwah!",
+        gifs: [
+            "https://i.pinimg.com/originals/01/c9/e3/01c9e33fc02b8987c805452ffcd99083.gif",
+            "https://i.pinimg.com/originals/74/e6/83/74e683cbbbea253cc19f71a961d2dc74.gif",
+            "https://i.pinimg.com/originals/e3/de/21/e3de210d09f72e72897c70ef8ec65271.gif"
+        ]
+    },
+    slap: {
+        text: "**{user}** slapped **{target}**! Ouch! 👋",
+        solo: "**{user}** is slapping the air aggressively!",
+        gifs: [
+            "https://media.tenor.com/XiYuU9h44-AAAAAC/anime-slap-mad.gif",
+            "https://media.tenor.com/Ws6Dm1ZW_vMAAAAC/girl-slap.gif",
+            "https://media.tenor.com/CvBTA0GyrogAAAAC/anime-slap.gif"
+        ]
+    },
+    punt: {
+        text: "**{user}** punted **{target}** into the stratosphere! 🦶",
+        solo: "**{user}** is practicing their kicking skills.",
+        gifs: [
+            "https://media.tenor.com/6a42QlkVSVYAAAAC/anime-kick.gif",
+            "https://media.tenor.com/Lyqfq7_vJnsAAAAC/kick-anime.gif",
+            "https://media.tenor.com/E5J0k8yXjOAAAAAC/anime-kick.gif"
+        ]
+    },
+    hug: {
+        text: "**{user}** gave **{target}** a big warm hug! 🤗",
+        solo: "**{user}** needs a hug... come here!",
+        gifs: [
+            "https://media.tenor.com/kCZjTqCKiggAAAAC/hug.gif",
+            "https://media.tenor.com/J7e9ukTPs1UAAAAC/anime-hug.gif",
+            "https://media.tenor.com/2Lr9uMCoS9QAAAAC/anime-hug.gif"
+        ]
+    },
+    smirk: {
+        text: "**{user}** smirks at **{target}**... 😏",
+        solo: "**{user}** is smirking mischievously.",
+        gifs: [
+            "https://media.tenor.com/6J7d_F4v7mQAAAAC/anime-smirk.gif",
+            "https://media.tenor.com/Y1rZgVq5XzUAAAAC/anya-smirk.gif",
+            "https://media.tenor.com/837kCA70M94AAAAC/anime-smirk.gif"
+        ]
+    },
+    seduce: {
+        text: "**{user}** is trying to seduce **{target}**... did it work? 🌹",
+        solo: "**{user}** is looking very flirtatious today.",
+        gifs: [
+            "https://media.tenor.com/Wl1C9q0Y3cEAAAAC/anime-flirt.gif",
+            "https://media.tenor.com/1YQ3G5t31cEAAAAC/wink-anime.gif",
+            "https://media.tenor.com/9C91c3d13cEAAAAC/anime-wink.gif"
+        ]
+    },
+    rage: {
+        text: "**{user}** is RAGING at **{target}**! 😡",
+        solo: "**{user}** is absolutely FURIOUS!",
+        gifs: [
+            "https://media.tenor.com/p_4b6W8X1cEAAAAC/anime-rage.gif",
+            "https://media.tenor.com/5J3d8_2Y3cEAAAAC/angry-anime.gif",
+            "https://media.tenor.com/8J3d9_1Y3cEAAAAC/anime-scream.gif"
+        ]
+    },
+    bleh: {
+        text: "**{user}** goes BLEH at **{target}** :P",
+        solo: "**{user}**: BLEHHHH :P",
+        gifs: [
+            "https://media.tenor.com/8J3d9_1Y3cEAAAAC/anime-bleh.gif",
+            "https://media.tenor.com/9C91c3d13cEAAAAC/anime-tongue.gif",
+            "https://media.tenor.com/2Lr9uMCoS9QAAAAC/anime-bleh.gif"
+        ]
+    },
+    pat: {
+        text: "**{user}** pats **{target}** gently on the head.",
+        solo: "**{user}** pats their own head. Good job!",
+        gifs: [
+            "https://media.tenor.com/E6fMkQRZBdIAAAAC/anime-pat.gif",
+            "https://media.tenor.com/Y7B6npa9oXcAAAAC/pat-head.gif",
+            "https://media.tenor.com/DmYhD-1Y3cEAAAAC/anime-pat.gif"
+        ]
+    },
+    bonk: {
+        text: "**{user}** BONKED **{target}**! Go to horny jail! 🔨",
+        solo: "**{user}** bonks themselves.",
+        gifs: [
+            "https://media.tenor.com/6J7d_F4v7mQAAAAC/bonk-anime.gif",
+            "https://media.tenor.com/Tg91c3d13cEAAAAC/anime-bonk.gif",
+            "https://media.tenor.com/1YQ3G5t31cEAAAAC/bonk.gif"
+        ]
+    }
+};
+
+// --- HELPER: TIME PARSER ---
+function parseDuration(str) {
+  if (!str) return null;
+  const unit = str.slice(-1);
+  const value = parseInt(str.slice(0, -1));
+  if (isNaN(value)) return null;
+  switch (unit) {
+    case 's': return value * 1000;
+    case 'm': return value * 60 * 1000;
+    case 'h': return value * 60 * 60 * 1000;
+    case 'd': return value * 24 * 60 * 60 * 1000;
+    default: return null;
+  }
+}
+
+// --- HELPER: UWU TRANSLATOR ---
+function uwuify(text) {
+  const faces = ['(・`ω´・)', ';;w;;', 'owo', 'UwU', '>w<', '^w^'];
+  text = text.replace(/(?:r|l)/g, 'w').replace(/(?:R|L)/g, 'W').replace(/n([aeiou])/g, 'ny$1').replace(/N([aeiou])/g, 'Ny$1').replace(/N([AEIOU])/g, 'Ny$1').replace(/ove/g, 'uv').replace(/!+/g, ' ' + faces[Math.floor(Math.random() * faces.length)] + ' ');
+  return text;
+}
+
+// --- SLASH COMMAND DEFINITIONS ---
+const commands = [
+  { name: 'ping', description: 'Check bot latency' }, 
+  {
+    name: 'talk',
+    description: 'Make the bot say something',
+    options: [
+      { name: 'message', description: 'What should I say?', type: 3, required: true },
+      { name: 'channel', description: 'Where? (Optional)', type: 7, required: false }
+    ],
+    default_member_permissions: '8'
+  },
+  { name: 'me', description: 'Credits' },
+  {
+    name: 'embed',
+    description: 'Create a custom embedded message',
+    options: [
+      { name: 'title', description: 'Title of the embed', type: 3, required: false },
+      { name: 'description', description: 'Main text', type: 3, required: false },
+      { name: 'color', description: 'Hex Color (e.g. #FF0000)', type: 3, required: false },
+      { name: 'image', description: 'Image URL', type: 3, required: false },
+      { name: 'thumbnail', description: 'Thumbnail URL', type: 3, required: false },
+      { name: 'footer', description: 'Footer text', type: 3, required: false },
+      { name: 'channel', description: 'Where to send it?', type: 7, required: false }
+    ],
+    default_member_permissions: '8'
+  },
+  { name: 'mute', description: 'Mute user', options: [{ name: 'user', description: 'User', type: 6, required: true }, { name: 'duration', description: 'e.g. 10s, 5m', type: 3, required: false }], default_member_permissions: '8' },
+  { name: 'unmute', description: 'Unmute user', options: [{ name: 'user', description: 'User', type: 6, required: true }], default_member_permissions: '8' },
+  { name: 'ban', description: 'Ban user', options: [{ name: 'user', description: 'User', type: 6, required: true }, { name: 'reason', description: 'Reason', type: 3, required: false }], default_member_permissions: '8' },
+  { name: 'kick', description: 'Kick user', options: [{ name: 'user', description: 'User', type: 6, required: true }, { name: 'reason', description: 'Reason', type: 3, required: false }], default_member_permissions: '8' },
+  { name: 'purge', description: 'Delete messages', options: [{ name: 'amount', description: 'Amount', type: 4, required: true }], default_member_permissions: '8' },
+  { name: 'lock', description: 'Lock channel', default_member_permissions: '8' },
+  { name: 'unlock', description: 'Unlock channel', default_member_permissions: '8' },
+  { name: 'deafen', description: 'Deafen user', options: [{ name: 'user', description: 'User', type: 6, required: true }], default_member_permissions: '8' },
+  { name: 'undeafen', description: 'Undeafen user', options: [{ name: 'user', description: 'User', type: 6, required: true }], default_member_permissions: '8' },
+  { name: 'setprefix', description: 'Change prefix', options: [{ name: 'new_prefix', description: 'Symbol', type: 3, required: true }], default_member_permissions: '8' },
+  { name: 'uwulock', description: 'Force a user to speak UwU', options: [{ name: 'user', description: 'User to lock', type: 6, required: true }], default_member_permissions: '8' },
+  { name: 'uwuunlock', description: 'Free a user from UwU', options: [{ name: 'user', description: 'User to unlock', type: 6, required: true }], default_member_permissions: '8' },
+  { name: 'stick', description: 'Create a reminder', options: [{ name: 'message', description: 'Text', type: 3, required: true }], default_member_permissions: '8' },
+  { name: 'unstick', description: 'Remove reminder', default_member_permissions: '8' },
+  { name: 'afk', description: 'Set status to AFK', options: [{ name: 'reason', description: 'Reason', type: 3, required: false }] },
+  { name: 'snipe', description: 'Show last deleted msg' },
+  { name: 'help', description: 'Show commands' },
+  { name: 'userinfo', description: 'Get user info', options: [{ name: 'user', description: 'User', type: 6, required: false }] },
+  { name: 'avatar', description: 'Get avatar', options: [{ name: 'user', description: 'User', type: 6, required: false }] },
+  { name: 'welcome-setup', description: 'Setup welcome message', options: [{ name: 'channel', description: 'Channel', type: 7, required: true }, { name: 'message', description: 'Message', type: 3, required: false }, { name: 'type', description: 'Style', type: 3, required: false, choices: [{ name: 'Text', value: 'text' }, { name: 'Embed', value: 'embed' }] }, { name: 'image_url', description: 'Image Link (GIF/PNG) for Embed', type: 3, required: false }, { name: 'color', description: 'Hex Color (e.g. #FF0000)', type: 3, required: false }], default_member_permissions: '8' },
+  { name: 'leave-setup', description: 'Setup leave message', options: [{ name: 'channel', description: 'Channel', type: 7, required: true }, { name: 'message', description: 'Message', type: 3, required: false }], default_member_permissions: '8' },
+  { name: 'ticketsetup', description: 'Create ticket panel', options: [{ name: 'channel', description: 'Where to post the panel', type: 7, required: true }, { name: 'category', description: 'Where to open tickets', type: 7, channel_types: [4], required: false }, { name: 'title', description: 'Panel Title', type: 3, required: false }, { name: 'description', description: 'Panel Description', type: 3, required: false }], default_member_permissions: '8' },
+  { name: 'autoreact-setup', description: 'Auto-react setup', options: [{ name: 'emoji', description: 'Which emoji?', type: 3, required: true }, { name: 'role', description: 'Optional: Filter by this Role', type: 8, required: false }], default_member_permissions: '8' },
+  { name: 'autorole-setup', description: 'Set auto role', options: [{ name: 'role', description: 'Role to give new members', type: 8, required: true }], default_member_permissions: '8' },
+  { name: 'skullboard-setup', description: 'Skullboard setup', options: [{ name: 'channel', description: 'Where to log skulls', type: 7, required: true }], default_member_permissions: '8' },
+  { name: 'boost-setup', description: 'Set boost announcement', options: [{ name: 'channel', description: 'Where to announce boosts', type: 7, required: true }, { name: 'message', description: 'Custom msg (Use {user})', type: 3, required: false }], default_member_permissions: '8' },
+  { name: 'reactionrole', description: 'Reaction Role', options: [{ name: 'role', description: 'Role to give', type: 8, required: true }, { name: 'description', description: 'Message text', type: 3, required: true }, { name: 'emoji', description: 'Emoji to click', type: 3, required: false }], default_member_permissions: '8' }
+];
+
+// --- STARTUP ---
+client.once(Events.ClientReady, async () => {
+  console.log(`Logged in as ${client.user.tag}`);
+  client.user.setActivity('Watching Sun God Niqqa', { type: ActivityType.Playing });
+  const rest = new REST().setToken(client.token);
+  try {
+    if (GUILD_ID === 'PASTE_YOUR_SERVER_ID_HERE') {
+        console.log('⚠️ ERROR: YOU FORGOT TO PASTE YOUR SERVER ID AT THE TOP!');
+    } else {
+        console.log('Refreshing commands...');
+        await rest.put(Routes.applicationGuildCommands(client.user.id, GUILD_ID), { body: commands });
+        console.log('✅ Commands Registered!');
+    }
+  } catch (error) { console.error('Slash error:', error); }
+});
+
+// --- PREFIX HANDLER ---
+client.on('messageCreate', async message => {
+  if (message.author.bot) return;
+
+  // DEBUGGING
+  console.log(`[DEBUG] Message received: ${message.content}`);
+
+  // 1. UWU LOCK
+  if (uwuTargets.has(message.author.id)) {
+    try {
+      await message.delete();
+      const uwuText = uwuify(message.content);
+      const nickname = message.member ? message.member.displayName : message.author.username;
+      await message.channel.send(`**${nickname}**: ${uwuText}`);
+      return;
+    } catch (e) {}
+  }
+
+  // 2. STICKY NOTE
+  if (stickyMessages.has(message.channel.id)) {
+    const stickyData = stickyMessages.get(message.channel.id);
+    if (stickyData.lastMsgId) message.channel.messages.delete(stickyData.lastMsgId).catch(() => {});
+    const sentSticky = await message.channel.send(`**reminder**\n${stickyData.content}`);
+    stickyData.lastMsgId = sentSticky.id;
+    stickyMessages.set(message.channel.id, stickyData);
+  }
+
+  // 3. AFK CHECK
+  if (message.mentions.users.size > 0) {
+    message.mentions.users.forEach(user => {
+      if (afkUsers.has(user.id)) {
+        message.reply(`💤 **${user.username}** is AFK: ${afkUsers.get(user.id).reason}`);
+      }
+    });
+  }
+  if (afkUsers.has(message.author.id)) {
+    afkUsers.delete(message.author.id);
+    message.reply(`👋 Welcome back **${message.author.username}**! AFK removed.`);
+  }
+
+  // 4. AUTO REACT
+  const config = guildSettings.get(message.guild.id);
+  if (config && config.autoReactRoles) {
+      message.member.roles.cache.forEach(role => {
+          if (config.autoReactRoles.has(role.id)) {
+              const emoji = config.autoReactRoles.get(role.id);
+              const emojiId = emoji.match(/<a?:.+?:(\d+)>/) ? emoji.match(/<a?:.+?:(\d+)>/)[1] : emoji;
+              message.react(emojiId).catch(() => {});
+          }
+      });
+  }
+
+  // 5. COMMAND PARSING
+  const serverPrefix = config?.prefix || defaultPrefix;
+  if (!message.content.startsWith(serverPrefix)) return;
+  const args = message.content.slice(serverPrefix.length).trim().split(/ +/);
+  const command = args.shift().toLowerCase();
+
+  try {
+    // --- 🌸 ANIME GIF LOGIC 🌸 ---
+    if (animeActions[command]) {
+        const action = animeActions[command];
+        const target = message.mentions.users.first();
+        const randGif = action.gifs[Math.floor(Math.random() * action.gifs.length)];
+        let desc = "";
+        
+        if (target && target.id !== message.author.id) {
+            desc = action.text.replace(/{user}/g, message.author.toString()).replace(/{target}/g, target.toString());
+        } else {
+            desc = action.solo.replace(/{user}/g, message.author.toString());
+        }
+
+        const embed = new EmbedBuilder()
+            .setDescription(desc)
+            .setImage(randGif)
+            .setColor(0xFFC0CB); // Pink
+        
+        return message.channel.send({ embeds: [embed] });
+    }
+    // ---------------------------------
+
+    if (command === 'ping') return message.reply(`🏓 Pong! ${Math.round(client.ws.ping)}ms`);
+    
+    if (command === 'talk') {
+        if(!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply("❌ You need Admin permissions.");
+        message.delete().catch(()=>{});
+        return message.channel.send(args.join(' ') || 'What?');
+    }
+    
+    if (command === 'ban') {
+        if(!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) return message.reply("❌ You need Ban Members permission.");
+        const target = message.mentions.members.first();
+        if(!target) return message.reply('Mention someone to ban.');
+        if(!target.bannable) return message.reply('❌ Cannot ban (Hierarchy error).');
+        await target.ban(); 
+        message.reply(`🔨 Banned **${target.user.tag}**`);
+    }
+    
+    if (command === 'kick') {
+        if(!message.member.permissions.has(PermissionsBitField.Flags.KickMembers)) return message.reply("❌ You need Kick Members permission.");
+        const target = message.mentions.members.first();
+        if(!target) return message.reply('Mention someone to kick.');
+        if(!target.kickable) return message.reply('❌ Cannot kick (Hierarchy error).');
+        await target.kick(); 
+        message.reply(`🦵 Kicked **${target.user.tag}**`);
+    }
+    
+    if (command === 'autoreact') {
+        if(!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply("❌ You need Admin permissions.");
+        const role = message.mentions.roles.first();
+        const emoji = args[1];
+        if(!role || !emoji) return message.reply('Usage: !autoreact @Role <Emoji>');
+        const cfg = guildSettings.get(message.guild.id) || {};
+        if (!cfg.autoReactRoles) cfg.autoReactRoles = new Map();
+        cfg.autoReactRoles.set(role.id, emoji);
+        guildSettings.set(message.guild.id, cfg);
+        message.reply(`✅ Setup! Users with **${role.name}** will get ${emoji}.`);
+    }
+    
+    if (command === 'help') {
+        const embed = new EmbedBuilder().setTitle('📜 Bot Command Manual').setColor(0x00AAFF).setDescription(`**Prefix:** \`${serverPrefix}\`\nUse \`/\` for Slash Commands or \`${serverPrefix}\` for text commands.`)
+            .addFields(
+                { name: '🌸 Anime Actions', value: '`kiss`, `slap`, `punt`, `hug`, `smirk`\n`seduce`, `rage`, `bleh`, `pat`, `bonk`\n*(Mention a user to target them!)*' },
+                { name: '🛡️ Admin / Mod', value: '`ban`, `kick`, `mute`, `unmute`, `lock`, `unlock`, `purge`\n`deafen`, `undeafen`, `stick`, `unstick`\n`setprefix`, `talk`, `embed`, `uwulock`' },
+                { name: '🌍 Public / Fun', value: '`ping`, `afk`, `snipe`, `userinfo`, `avatar`, `me`, `help`' },
+                { name: '⚙️ Setup (Slash Only)', value: '`/ticketsetup`, `/welcome-setup`, `/leave-setup`\n`/autorole-setup`, `/autoreact-setup`\n`/skullboard-setup`, `/reactionrole`, `/boost-setup`' }
+            );
+        message.reply({embeds:[embed]});
+    }
+    
+    if (command === 'userinfo') {
+        const member = message.mentions.members.first() || message.member;
+        const embed = new EmbedBuilder().setTitle(`User: ${member.user.tag}`).addFields({name:'Joined', value: `<t:${Math.floor(member.joinedTimestamp/1000)}:R>`}).setColor(0x00AAFF);
+        message.reply({embeds:[embed]});
+    }
+  } catch (e) { console.error('Prefix Error:', e); }
+});
+
+// --- SLASH COMMAND HANDLER ---
+client.on('interactionCreate', async interaction => {
+  // BUTTONS
+  if (interaction.isButton()) {
+    if (interaction.customId.startsWith('rr_')) {
+        const roleId = interaction.customId.split('_')[1];
+        const role = interaction.guild.roles.cache.get(roleId);
+        if (!role) return interaction.reply({content:'Role deleted?', ephemeral:true});
+        if(interaction.member.roles.cache.has(roleId)) {
+            await interaction.member.roles.remove(roleId);
+            return interaction.reply({content:`➖ Removed **${role.name}**`, ephemeral:true});
+        } else {
+            await interaction.member.roles.add(roleId);
+            return interaction.reply({content:`➕ Added **${role.name}**`, ephemeral:true});
+        }
+    }
+    if (interaction.customId === 'create_ticket') {
+        const chName = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        if (interaction.guild.channels.cache.find(c => c.name === chName)) {
+            return interaction.reply({ content: `❌ You already have a ticket!`, ephemeral: true });
+        }
+        const modal = new ModalBuilder().setCustomId('ticket_modal').setTitle('Open Ticket');
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ticket_subject').setLabel('Subject').setStyle(TextInputStyle.Short).setRequired(true)),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ticket_desc').setLabel('Description').setStyle(TextInputStyle.Paragraph).setRequired(true))
+        );
+        await interaction.showModal(modal);
+    }
+    if (interaction.customId === 'close_ticket') {
+        interaction.reply('🔒 Closing...');
+        setTimeout(() => interaction.channel.delete(), 3000);
+    }
+    return;
+  }
+
+  // MODALS
+  if (interaction.isModalSubmit() && interaction.customId === 'ticket_modal') {
+    await interaction.deferReply({ ephemeral: true });
+    const subject = interaction.fields.getTextInputValue('ticket_subject');
+    const desc = interaction.fields.getTextInputValue('ticket_desc');
+    const chName = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    const config = guildSettings.get(interaction.guild.id) || {};
+    try {
+        const ch = await interaction.guild.channels.create({
+            name: chName, type: ChannelType.GuildText, parent: config.ticketCategory,
+            permissionOverwrites: [{id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel]}, {id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel]}]
+        });
+        const embed = new EmbedBuilder().setTitle(`Ticket: ${subject}`).setDescription(`**User:** ${interaction.user}\n**Desc:** ${desc}`).setColor(0x0099FF);
+        const btn = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket').setLabel('Close').setStyle(ButtonStyle.Danger).setEmoji('🔒'));
+        let mentions = `${interaction.user}`;
+        if(TICKET_SUPPORT_ROLE) mentions += ` <@&${TICKET_SUPPORT_ROLE}>`;
+        await ch.send({content: `🔔 ${mentions}`, embeds:[embed], components:[btn]});
+        interaction.editReply(`✅ Created ${ch}`);
+    } catch(e) { interaction.editReply('❌ Error creating ticket.'); }
+    return;
+  }
+
+  if (!interaction.isChatInputCommand()) return;
+
+  // COMMANDS
+  try {
+    const { commandName, options } = interaction;
+
+    if (commandName === 'purge') {
+        await interaction.deferReply({ ephemeral: true }); 
+        const amt = options.getInteger('amount');
+        if (amt > 100) return interaction.editReply('❌ Max 100.');
+        await interaction.channel.bulkDelete(amt, true).catch(() => interaction.editReply("❌ Error deleting (too old?)."));
+        return interaction.editReply(`🗑️ Deleted ${amt}.`);
+    }
+
+    await interaction.deferReply({ ephemeral: false });
+
+    if (commandName === 'ping') interaction.editReply(`🏓 Pong! ${Math.round(client.ws.ping)}ms`);
+    else if (commandName === 'talk') {
+        await (options.getChannel('channel')||interaction.channel).send(options.getString('message'));
+        interaction.editReply('✅ Sent.');
+    }
+    else if (commandName === 'me') {
+        interaction.editReply('This bot was made out of boredom by Enkkd.');
+    }
+    else if (commandName === 'setprefix') {
+        const newPrefix = options.getString('new_prefix');
+        const cfg = guildSettings.get(interaction.guildId) || {};
+        cfg.prefix = newPrefix;
+        guildSettings.set(interaction.guildId, cfg);
+        interaction.editReply(`✅ Prefix changed to: \`${newPrefix}\``);
+    }
+    else if (commandName === 'embed') {
+        const title = options.getString('title');
+        const description = options.getString('description');
+        const color = options.getString('color') || '#0099FF';
+        const image = options.getString('image');
+        const thumbnail = options.getString('thumbnail');
+        const footer = options.getString('footer');
+        const targetChannel = options.getChannel('channel') || interaction.channel;
+
+        const embed = new EmbedBuilder().setColor(color);
+        if (title) embed.setTitle(title);
+        if (description) embed.setDescription(description.replace(/\\n/g, '\n'));
+        if (image) embed.setImage(image);
+        if (thumbnail) embed.setThumbnail(thumbnail);
+        if (footer) embed.setFooter({ text: footer });
+
+        await targetChannel.send({ embeds: [embed] });
+        interaction.editReply({ content: '✅ Embed sent!', ephemeral: true });
+    }
+    else if (commandName === 'ban') {
+        const user = options.getMember('user');
+        if(!user.bannable) return interaction.editReply('❌ Cannot ban.');
+        await user.ban({ reason: options.getString('reason') });
+        interaction.editReply(`✅ Banned **${user.user.tag}**`);
+    }
+    else if (commandName === 'kick') {
+        const user = options.getMember('user');
+        if(!user.kickable) return interaction.editReply('❌ Cannot kick.');
+        await user.kick(options.getString('reason'));
+        interaction.editReply(`✅ Kicked **${user.user.tag}**`);
+    }
+    else if (commandName === 'userinfo') {
+        const user = options.getMember('user') || interaction.member;
+        const embed = new EmbedBuilder().setTitle(`User: ${user.user.tag}`).addFields({name:'Joined', value:`<t:${Math.floor(user.joinedTimestamp/1000)}:R>`}).setColor(0x00AAFF);
+        interaction.editReply({embeds:[embed]});
+    }
+    else if (commandName === 'help') {
+        const embed = new EmbedBuilder().setTitle('📜 Bot Command Manual').setColor(0x00AAFF).setDescription(`**Prefix:** \`${defaultPrefix}\`\nUse \`/\` for Slash Commands or \`${defaultPrefix}\` for text commands.`)
+            .addFields(
+                { name: '🌸 Anime Actions', value: '`kiss`, `slap`, `punt`, `hug`, `smirk`\n`seduce`, `rage`, `bleh`, `pat`, `bonk`' },
+                { name: '🛡️ Admin / Mod', value: '`ban`, `kick`, `mute`, `unmute`, `lock`, `unlock`, `purge`\n`deafen`, `undeafen`, `stick`, `unstick`\n`setprefix`, `talk`, `embed`, `uwulock`' },
+                { name: '🌍 Public / Fun', value: '`ping`, `afk`, `snipe`, `userinfo`, `avatar`, `me`, `help`' },
+                { name: '⚙️ Setup (Slash Only)', value: '`/ticketsetup`, `/welcome-setup`, `/leave-setup`\n`/autorole-setup`, `/autoreact-setup`\n`/skullboard-setup`, `/reactionrole`, `/boost-setup`' }
+            );
+        interaction.editReply({embeds:[embed]});
+    }
+    // ... (All setup commands handled below)
+    else if (commandName === 'ticketsetup') {
+        const title = options.getString('title') || 'Support';
+        const desc = options.getString('description') || 'Open a ticket';
+        const cfg = guildSettings.get(interaction.guildId) || {};
+        if(options.getChannel('category')) cfg.ticketCategory = options.getChannel('category').id;
+        guildSettings.set(interaction.guildId, cfg);
+        const embed = new EmbedBuilder().setTitle(title).setDescription(desc).setColor(0x2F3136);
+        const btn = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('create_ticket').setLabel('Open Ticket').setStyle(ButtonStyle.Secondary).setEmoji('📩'));
+        await options.getChannel('channel').send({embeds:[embed], components:[btn]});
+        interaction.editReply('✅ Setup done.');
+    }
+    // ... (Other Setups)
+    else if (commandName === 'autoreact-setup') {
+        const emoji = options.getString('emoji');
+        const role = options.getRole('role');
+        const cfg = guildSettings.get(interaction.guildId) || {};
+        if (!cfg.autoReactRoles) cfg.autoReactRoles = new Map();
+        cfg.autoReactRoles.set(role.id, emoji);
+        guildSettings.set(interaction.guildId, cfg);
+        interaction.editReply(`✅ React setup for **${role.name}**`);
+    }
+    else if (commandName === 'autorole-setup') {
+        const role = options.getRole('role');
+        const cfg = guildSettings.get(interaction.guildId) || {};
+        cfg.autoRoleId = role.id;
+        guildSettings.set(interaction.guildId, cfg);
+        interaction.editReply(`✅ Auto role: **${role.name}**`);
+    }
+    else if (commandName === 'welcome-setup') {
+        const ch = options.getChannel('channel');
+        const cfg = guildSettings.get(interaction.guildId) || {};
+        cfg.welcomeChannelId = ch.id;
+        cfg.welcomeMessage = options.getString('message');
+        cfg.welcomeType = options.getString('type');
+        cfg.welcomeImage = options.getString('image_url');
+        cfg.welcomeColor = options.getString('color');
+        guildSettings.set(interaction.guildId, cfg);
+        interaction.editReply('✅ Welcome set.');
+    }
+    else if (commandName === 'leave-setup') {
+        const ch = options.getChannel('channel');
+        const cfg = guildSettings.get(interaction.guildId) || {};
+        cfg.leaveChannelId = ch.id;
+        cfg.leaveMessage = options.getString('message');
+        guildSettings.set(interaction.guildId, cfg);
+        interaction.editReply('✅ Leave set.');
+    }
+    else if (commandName === 'boost-setup') {
+        const ch = options.getChannel('channel');
+        const cfg = guildSettings.get(interaction.guildId) || {};
+        cfg.boostChannelId = ch.id;
+        cfg.boostMessage = options.getString('message');
+        guildSettings.set(interaction.guildId, cfg);
+        interaction.editReply('✅ Boost set.');
+    }
+    else if (commandName === 'skullboard-setup') {
+        const ch = options.getChannel('channel');
+        const cfg = guildSettings.get(interaction.guildId) || {};
+        cfg.skullboardId = ch.id;
+        guildSettings.set(interaction.guildId, cfg);
+        interaction.editReply('✅ Skullboard set.');
+    }
+    else if (commandName === 'reactionrole') {
+        const role = options.getRole('role');
+        const desc = options.getString('description');
+        const emoji = options.getString('emoji');
+        const embed = new EmbedBuilder().setTitle('Get Role').setDescription(desc).setColor(role.color || 0x0099FF);
+        const btn = new ButtonBuilder().setCustomId(`rr_${role.id}`).setLabel(role.name).setStyle(ButtonStyle.Primary);
+        if (emoji) btn.setEmoji(emoji);
+        await interaction.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(btn)] });
+        interaction.editReply('✅ Reaction role created!');
+    }
+    else if (commandName === 'mute') {
+        const user = options.getMember('user');
+        const dStr = options.getString('duration');
+        const role = interaction.guild.roles.cache.find(r=>r.name==='Muted');
+        if(!role) return interaction.editReply('❌ "Muted" role missing.');
+        await user.roles.add(role);
+        interaction.editReply(`🤐 Muted **${user.user.tag}**`);
+        const ms = parseDuration(dStr);
+        if(ms) setTimeout(()=> user.roles.remove(role).catch(()=>{}), ms);
+    }
+    else if (commandName === 'unmute') {
+        const user = options.getMember('user');
+        const role = interaction.guild.roles.cache.find(r=>r.name==='Muted');
+        await user.roles.remove(role);
+        interaction.editReply(`🗣️ Unmuted.`);
+    }
+    else if (commandName === 'lock') {
+        await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { SendMessages: false });
+        interaction.editReply('🔒 Locked.');
+    }
+    else if (commandName === 'unlock') {
+        await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { SendMessages: null });
+        interaction.editReply('🔓 Unlocked.');
+    }
+    else if (commandName === 'deafen') {
+        const user = options.getMember('user');
+        if(!user.voice.channel) return interaction.editReply('❌ User not in voice.');
+        await user.voice.setDeaf(true);
+        interaction.editReply(`🔇 Deafened ${user.user.tag}.`);
+    }
+    else if (commandName === 'undeafen') {
+        const user = options.getMember('user');
+        if(!user.voice.channel) return interaction.editReply('❌ User not in voice.');
+        await user.voice.setDeaf(false);
+        interaction.editReply(`🔊 Undeafened ${user.user.tag}.`);
+    }
+    else if (commandName === 'uwulock') {
+        const target = options.getUser('user');
+        uwuTargets.add(target.id);
+        interaction.editReply(`🌸 **${target.username}** is now a certified cutiepatootie! aysig pacute wakay angay ${target.username}`);
+    }
+    else if (commandName === 'uwuunlock') {
+        const target = options.getUser('user');
+        uwuTargets.delete(target.id);
+        interaction.editReply(`🛑 **${target.username}** is free.`);
+    }
+    else if (commandName === 'stick') {
+        const text = options.getString('message');
+        const sent = await interaction.channel.send(`**reminder**\n${text}`);
+        stickyMessages.set(interaction.channelId, { content: text, lastMsgId: sent.id });
+        interaction.editReply({content: '✅ Message stuck!', ephemeral: true});
+    }
+    else if (commandName === 'unstick') {
+        if (stickyMessages.has(interaction.channelId)) {
+            const d = stickyMessages.get(interaction.channelId);
+            interaction.channel.messages.delete(d.lastMsgId).catch(()=>{});
+            stickyMessages.delete(interaction.channelId);
+            interaction.editReply('✅ Reminder removed.');
+        } else {
+            interaction.editReply('❌ No sticky message here.');
+        }
+    }
+    else if (commandName === 'afk') {
+        const reason = options.getString('reason') || 'No reason';
+        afkUsers.set(interaction.user.id, { reason, time: Date.now() });
+        interaction.editReply(`💤 AFK set: ${reason}`);
+    }
+    else if (commandName === 'snipe') {
+        const snipedMsg = snipes.get(interaction.channelId);
+        if (!snipedMsg) return interaction.editReply('❌ Nothing to snipe!');
+        const embed = new EmbedBuilder().setAuthor({ name: snipedMsg.author.tag, iconURL: snipedMsg.author.displayAvatarURL() }).setDescription(snipedMsg.content || '*(Image)*').setColor(0xFF0000).setFooter({text:'Deleted recently'});
+        if(snipedMsg.image) embed.setImage(snipedMsg.image);
+        interaction.editReply({ embeds: [embed] });
+    }
+    else {
+        interaction.editReply('⚠️ Command not fully implemented yet.');
+    }
+
+  } catch (err) { interaction.editReply('❌ Error: ' + err.message).catch(()=>{}); }
+});
+
+// --- MEMBER EVENTS ---
+client.on('guildMemberAdd', async member => {
+  const config = guildSettings.get(member.guild.id);
+  if (!config) return;
+  if (config.autoRoleId) {
+     const role = member.guild.roles.cache.get(config.autoRoleId);
+     if (role) await member.roles.add(role).catch(console.error);
+  }
+  if (config.welcomeChannelId) {
+    const ch = member.guild.channels.cache.get(config.welcomeChannelId);
+    if (ch) {
+        let msgText = (config.welcomeMessage || 'Welcome {user}!').replace(/{user}/g, member.toString()).replace(/{server}/g, member.guild.name).replace(/{count}/g, member.guild.memberCount);
+        if (config.welcomeType === 'embed') {
+            const embed = new EmbedBuilder().setTitle(`Welcome`).setDescription(msgText).setThumbnail(member.user.displayAvatarURL()).setColor(config.welcomeColor || 0x00FF00);
+            if (config.welcomeImage) embed.setImage(config.welcomeImage);
+            ch.send({ content: member.toString(), embeds: [embed] });
+        } else { ch.send(msgText); }
+    }
+  }
+});
+
+client.on('guildMemberRemove', async member => {
+  const config = guildSettings.get(member.guild.id);
+  if (config && config.leaveChannelId) {
+    const ch = member.guild.channels.cache.get(config.leaveChannelId);
+    if(ch) ch.send((config.leaveMessage||'Bye {user}').replace(/{user}/g, member.user.tag).replace(/{count}/g, member.guild.memberCount));
+  }
+});
+
+// --- CRASH PREVENTION ---
+process.on('unhandledRejection', (reason, p) => console.log('Anti-Crash: ', reason));
+process.on('uncaughtException', (err, origin) => console.log('Anti-Crash: ', err));
+
+// PASTE TOKEN HERE
+console.log('Starting bot...');
+client.login('');
