@@ -18,8 +18,8 @@ const {
 } = require('discord.js');
 
 // --- CONFIGURATION ---
-const GUILD_ID = '1405456143521677363'; 
-const TICKET_SUPPORT_ROLE = '1459199461556486351'; 
+const GUILD_ID = '1460970020023828515'; 
+const TICKET_SUPPORT_ROLE = '1460973031051759738'; 
 // ---------------------
 
 const client = new Client({
@@ -616,6 +616,7 @@ process.on('unhandledRejection', (r) => console.log('Err:', r));
 console.log('Starting bot...');
 
 client.login(process.env.DISCORD_TOKEN);
+
 
 
 
