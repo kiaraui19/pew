@@ -18,6 +18,8 @@ const {
 } = require('discord.js');
 
 // --- CONFIGURATION ---
+// You do NOT need to change these to switch servers.
+// The bot is GLOBAL now. It works on all servers automatically.
 const GUILD_ID = '1460970020023828515'; 
 const TICKET_SUPPORT_ROLE = '1460973031051759738'; 
 // ---------------------
@@ -26,8 +28,8 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.MessageContent, // CRITICAL FOR ! COMMANDS
+    GatewayIntentBits.GuildMembers,   // CRITICAL FOR WELCOME/LEAVE
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildPresences
@@ -37,7 +39,7 @@ const client = new Client({
 
 const defaultPrefix = '!';
 
-// --- DATA STORAGE ---
+// --- DATA STORAGE (Resets on Restart) ---
 const guildSettings = new Map();
 const snipes = new Map();
 const skullboardCache = new Set();
@@ -117,6 +119,20 @@ const commands = [
   { name: 'help', description: 'Show command list' },
   { name: 'userinfo', description: 'Get user details', options: [{ name: 'user', description: 'Target user', type: 6, required: false }] },
   { name: 'avatar', description: 'Get user avatar', options: [{ name: 'user', description: 'Target user', type: 6, required: false }] },
+  { 
+    name: 'embed', 
+    description: 'Create a custom embed', 
+    options: [
+      { name: 'title', description: 'Title', type: 3, required: false },
+      { name: 'description', description: 'Description', type: 3, required: false },
+      { name: 'color', description: 'Color (Hex)', type: 3, required: false },
+      { name: 'image', description: 'Image URL', type: 3, required: false },
+      { name: 'thumbnail', description: 'Thumbnail URL', type: 3, required: false },
+      { name: 'footer', description: 'Footer text', type: 3, required: false },
+      { name: 'channel', description: 'Channel to send to', type: 7, required: false }
+    ],
+    default_member_permissions: '8'
+  },
   
   // SETUP COMMANDS
   { name: 'ticketsetup', description: 'Setup ticket panel', options: [{ name: 'channel', description: 'Panel location', type: 7, required: true }, { name: 'category', description: 'Ticket category', type: 7, channel_types: [4], required: false }, { name: 'role', description: 'Role to ping', type: 8, required: false }, { name: 'title', description: 'Embed Title', type: 3, required: false }, { name: 'description', description: 'Embed Desc', type: 3, required: false }], default_member_permissions: '8' },
@@ -132,10 +148,11 @@ const commands = [
 // --- STARTUP ---
 client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}`);
-  client.user.setActivity('Made out of Boredom', { type: ActivityType.Playing });
+  client.user.setActivity('Watching Sun God Niqqa', { type: ActivityType.Playing });
   const rest = new REST().setToken(client.token);
   try {
       console.log('Refreshing Global Commands...');
+      // Registers commands GLOBALLY. You do not need to change GUILD_ID anymore.
       await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
       console.log('✅ Commands Registered!');
   } catch (error) { console.error('Slash error:', error); }
@@ -235,16 +252,14 @@ client.on('messageCreate', async message => {
         return message.channel.send({ embeds: [new EmbedBuilder().setDescription(desc).setImage(gif).setColor(0xFFC0CB)] });
     }
 
-    // 🟢 UTILITY & HELP
+    // UTILITY
     if (command === 'ping') return message.reply(`🏓 Pong! ${Math.round(client.ws.ping)}ms`);
     if (command === 'me') return message.reply('Made by Enkkd.');
-    
-    // 🔥 RESTORED HELP COMMAND (PREFIX)
     if (command === 'help') {
         const embed = new EmbedBuilder()
             .setTitle('📜 Nocte Bot Command List')
             .setColor(0x00AAFF)
-            .setDescription(`**Current Prefix:** \`${serverPrefix}\`\nUse \`/\` for Slash Commands or \`${serverPrefix}\` for text commands.`)
+            .setDescription(`**Prefix:** \`${serverPrefix}\`\nUse \`/\` for Slash Commands or \`${serverPrefix}\` for text commands.`)
             .addFields(
                 { name: '🎉 Giveaways (Slash)', value: '`/giveaway` - Start a giveaway\n`/giveaway-end` - End immediately\n`/giveaway-reroll` - Pick new winner' },
                 { name: '🌸 Anime & Fun', value: '`kiss`, `slap`, `punt`, `hug`, `smirk`, `seduce`, `rage`, `bleh`, `pat`, `bonk`\n`snipe`, `afk`, `avatar`, `userinfo`, `me`' },
@@ -612,11 +627,39 @@ client.on('interactionCreate', async interaction => {
   } catch(e) { console.error(e); }
 });
 
-process.on('unhandledRejection', (r) => console.log('Err:', r));
+// --- MEMBER EVENTS ---
+client.on('guildMemberAdd', async member => {
+  const config = guildSettings.get(member.guild.id);
+  if (!config) return;
+  if (config.autoRoleId) {
+     const role = member.guild.roles.cache.get(config.autoRoleId);
+     if (role) await member.roles.add(role).catch(console.error);
+  }
+  if (config.welcomeChannelId) {
+    const ch = member.guild.channels.cache.get(config.welcomeChannelId);
+    if (ch) {
+        let msgText = (config.welcomeMessage || 'Welcome {user}!').replace(/{user}/g, member.toString()).replace(/{server}/g, member.guild.name).replace(/{count}/g, member.guild.memberCount);
+        if (config.welcomeType === 'embed') {
+            const embed = new EmbedBuilder().setTitle(`Welcome`).setDescription(msgText).setThumbnail(member.user.displayAvatarURL()).setColor(config.welcomeColor || 0x00FF00);
+            if (config.welcomeImage) embed.setImage(config.welcomeImage);
+            ch.send({ content: member.toString(), embeds: [embed] });
+        } else { ch.send(msgText); }
+    }
+  }
+});
+
+client.on('guildMemberRemove', async member => {
+  const config = guildSettings.get(member.guild.id);
+  if (config && config.leaveChannelId) {
+    const ch = member.guild.channels.cache.get(config.leaveChannelId);
+    if(ch) ch.send((config.leaveMessage||'Bye {user}').replace(/{user}/g, member.user.tag).replace(/{count}/g, member.guild.memberCount));
+  }
+});
+
+// --- CRASH PREVENTION ---
+process.on('unhandledRejection', (reason, p) => console.log('Anti-Crash: ', reason));
+process.on('uncaughtException', (err, origin) => console.log('Anti-Crash: ', err));
+
+// PASTE TOKEN HERE
 console.log('Starting bot...');
-
 client.login(process.env.DISCORD_TOKEN);
-
-
-
-
