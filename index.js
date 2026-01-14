@@ -18,8 +18,7 @@ const {
 } = require('discord.js');
 
 // --- CONFIGURATION ---
-// You do NOT need to change these to switch servers.
-// The bot is GLOBAL now. It works on all servers automatically.
+// ⚠️ COMMANDS WILL ONLY WORK IN THIS SERVER ID NOW:
 const GUILD_ID = '1460970020023828515'; 
 const TICKET_SUPPORT_ROLE = '1460973031051759738'; 
 // ---------------------
@@ -28,8 +27,8 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent, // CRITICAL FOR ! COMMANDS
-    GatewayIntentBits.GuildMembers,   // CRITICAL FOR WELCOME/LEAVE
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildPresences
@@ -39,7 +38,7 @@ const client = new Client({
 
 const defaultPrefix = '!';
 
-// --- DATA STORAGE (Resets on Restart) ---
+// --- DATA STORAGE ---
 const guildSettings = new Map();
 const snipes = new Map();
 const skullboardCache = new Set();
@@ -145,17 +144,22 @@ const commands = [
   { name: 'reactionrole', description: 'Create a reaction role', options: [{ name: 'role', description: 'Role to give', type: 8, required: true }, { name: 'description', description: 'Embed Text', type: 3, required: true }, { name: 'emoji', description: 'Button Emoji', type: 3, required: false }], default_member_permissions: '8' }
 ];
 
-// --- STARTUP ---
+// --- STARTUP (LOCAL/GUILD MODE) ---
 client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}`);
   client.user.setActivity('Watching Sun God Niqqa', { type: ActivityType.Playing });
   const rest = new REST().setToken(client.token);
+  
   try {
-      console.log('Refreshing Global Commands...');
-      // Registers commands GLOBALLY. You do not need to change GUILD_ID anymore.
-      await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-      console.log('✅ Commands Registered!');
-  } catch (error) { console.error('Slash error:', error); }
+      console.log(`Refreshing Guild Commands for: ${GUILD_ID}...`);
+      
+      // 👇 THIS REGISTERS COMMANDS ONLY TO THE SPECIFIC SERVER ID (Faster Updates)
+      await rest.put(Routes.applicationGuildCommands(client.user.id, GUILD_ID), { body: commands });
+      
+      console.log('✅ Commands Registered Locally!');
+  } catch (error) { 
+      console.error('Slash error:', error); 
+  }
 });
 
 // --- SNIPE HANDLER ---
