@@ -147,7 +147,7 @@ const commands = [
 // --- STARTUP (LOCAL/GUILD MODE) ---
 client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}`);
-  client.user.setActivity('Watching Sun God Niqqa', { type: ActivityType.Playing });
+  client.user.setActivity('Watching Fish Out of Water', { type: ActivityType.Playing });
   const rest = new REST().setToken(client.token);
   
   try {
@@ -667,3 +667,4 @@ process.on('uncaughtException', (err, origin) => console.log('Anti-Crash: ', err
 // PASTE TOKEN HERE
 console.log('Starting bot...');
 client.login(process.env.DISCORD_TOKEN);
+
